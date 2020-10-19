@@ -6,7 +6,7 @@ FRF is a file format for raster imagery that supports an arbitrary number of lay
  - FRF is designed to represent data in arbitrary numeric ranges, regardless of the underlying storage type. We make a distinction between the "raw value" of a pixel (for instance, an integer 0-255) and the "value" of a pixel, which is computed as an affine function of the raw value using coefficients saved in the image metadata. This supports the representation of meaningful data, optionally with SI units attached.
  
 # Current State
-FRF is developed and maintained by Bryan Poling at Sentek Systems, LLC. FRF is not a finished spec, althouth it is currently used by the Cheetah Structure from Motion software package (Sentek Systems, LLC) for representing stitched aerial imagery from multi-spectral cameras.
+FRF is developed and maintained by Bryan Poling at Sentek Systems, LLC. FRF is not a finished spec, although it is currently used by the Cheetah Structure from Motion software package (Sentek Systems, LLC) for representing stitched aerial imagery from multi-spectral cameras.
 
 # Using FRF
 The FRF library consists of a single C++ header file and a single (large) C++ source file. Just include the source file in your project and you are good to go. The only external dependency that FRF has is Eigen.
