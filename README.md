@@ -16,3 +16,11 @@ FRF is available under a permissive 3-clause BSD license.
 
 # More Info
 See "FRF Draft Spec.pdf" in this repository for more detailed information on the specification. See "Examples" to get started using FRF.
+
+# Custom Block Codes
+FRF supports storing custom metadata in the image header through "Custom Information Blocks". These are only meant for storing additional info that can't be encoded using standard FRF functionality. The FRF library treats a custom info block as sequence of bytes that you must create and interpret yourself, so if you use custom info blocks you may be the only one who can make sense of the data you store in them. A custom information block has a payload that begins with a 64-bit unsigned integer called the "Custom Block Code" (full details in "FRF Draft Spec.pdf"). This code is used to differentiate between different kinds of custom info blocks. These are not regulated, but we maintain a list of known custom block codes to avoid conflicts. If you are going to make your own custom blocks it is strongly recommended that you use a custom block code that isn't already in use and contact me to get your code listed in our table. Here is a table of known custom block codes being used in the wild:
+
+| CustomBlockCode (Uint64) | Defined By | Used For (& Link) |
+| ------------------------ | ---------- | ------------------------|
+| 0 | Sentek Systems, LLC | Shadow Map Information Block (NIFA Grant # 20206702130758) |
+
