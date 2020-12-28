@@ -177,6 +177,7 @@ class FRFImage {
 		bool LoadFromDisk(std::string Filepath); //Try to load an FRF image from disk. On failure, create an empty image
 		bool LoadFromRAM(std::vector<uint8_t> const & Buffer); //Try to load an FRF image from a buffer. On failure, create an empty image
 		bool SaveToDisk(std::string Filepath) const;
+		bool SaveToRAM(std::vector<uint8_t> & Buffer) const;
 		
 		//General Inspection and Modification Methods
 		std::tuple<uint16_t, uint16_t> getFileVersion(void) const; //Return <Major, Minor> version tuple for the image

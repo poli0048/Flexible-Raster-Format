@@ -725,9 +725,9 @@ static double getPrincipalValue(double value, double rangeMin, double rangeMax) 
 }
 
 //Take a (Lat, Lon) pair and adjust Lon to make sure it is in the range [0, 2*Pi)
-static Eigen::Vector2d MapLatLonToPrincipalRange(Eigen::Vector2d LatLon) {
-	LatLon(1) = getPrincipalValue(LatLon(1), 0.0, 2.0*PI);
-	return LatLon;
+static Eigen::Vector2d MapLatLonToPrincipalRange(Eigen::Vector2d const & LatLon) {
+	double PrincipalLon = getPrincipalValue(LatLon(1), 0.0, 2.0*PI);
+	return Eigen::Vector2d(LatLon(0), PrincipalLon);
 }
 
 //Add or subtract 2*PI to Angle if doing so gets us closer to the reference angle
@@ -1706,6 +1706,98 @@ bool FRFImage::SaveToDisk(std::string Filepath) const {
 	return true;
 }
 
+bool FRFImage::SaveToRAM(std::vector<uint8_t> & Buffer) const {
+	Buffer.clear();
+	
+	//First check to make sure the image object is complete and valid. We will not create an invalid file.
+	if (Layers.empty()) {
+		fprintf(stderr,"Error in FRFImage::SaveToRAM. Can not save image with 0 layers.\r\n");
+		return false;
+	}
+	if (VisualizationManifest.empty()) {
+		fprintf(stderr,"Error in FRFImage::SaveToRAM. Can not save image with 0 visualizations.\r\n");
+		return false;
+	}
+	for (const FRFLayer * layer : Layers) {
+		if (layer->Data.size() != layer->GetTotalBytesWithValidityMask()) {
+			fprintf(stderr,"Error in FRFImage::SaveToRAM. Image has layer with incorrect buffer size. Aborting.\r\n");
+			return false;
+		}
+	}
+	
+	//Encode File Header
+	encodeField_uint64 (Buffer, (uint64_t) 3197395143525533696U);
+	encodeField_uint16 (Buffer, majorVersion);
+	encodeField_uint16 (Buffer, minorVersion);
+	encodeField_uint16 (Buffer, imageWidth);
+	encodeField_uint16 (Buffer, imageHeight);
+	
+	//Encode Layer Manifest Block
+	std::vector<uint8_t> blockPayload;
+	encodeField_uint16 (blockPayload, alphaLayerIndex);
+	for (const FRFLayer * layer : Layers)
+		serialize_LayerManifestSection(layer, blockPayload);
+	encodeField_uint16 (Buffer, 0U);                                             //Encode block code
+	encodeField_uint32 (Buffer, (uint32_t) blockPayload.size() + (uint32_t) 6U); //Encode block size
+	Buffer.insert(Buffer.end(), blockPayload.begin(), blockPayload.end());       //Insert block payload
+	
+	//Encode Visualizations Block
+	blockPayload.clear();
+	for (const FRFVisualization * viz : VisualizationManifest)
+		serialize_VisualizationSection(viz, blockPayload);
+	encodeField_uint16 (Buffer, 1U);                                             //Encode block code
+	encodeField_uint32 (Buffer, (uint32_t) blockPayload.size() + (uint32_t) 6U); //Encode block size
+	Buffer.insert(Buffer.end(), blockPayload.begin(), blockPayload.end());       //Insert block payload
+	
+	//Encode Geo-Tagging Block (if used)
+	if (GeoTagData != NULL) {
+		encodeField_uint16 (Buffer, 2U);                  //Encode block code
+		encodeField_uint32 (Buffer, (uint32_t) 114U);     //Encode block size
+		serialize_GeoTagBlockPayload(GeoTagData, Buffer); //Encode block payload
+	}
+	
+	//Encode Geo-Registration Block (if used)
+	if (GeoRegistrationData != NULL) {
+		blockPayload.clear();
+		serialize_GeoRegistrationPayload(GeoRegistrationData, blockPayload);
+		encodeField_uint16 (Buffer, 3U);                                             //Encode block code
+		encodeField_uint32 (Buffer, (uint32_t) blockPayload.size() + (uint32_t) 6U); //Encode block size
+		Buffer.insert(Buffer.end(), blockPayload.begin(), blockPayload.end());       //Insert block payload
+	}
+	
+	//Encode Camera Information Block (if used)
+	if (! CameraInformationTags.empty()) {
+		blockPayload.clear();
+		for (const auto & kv : CameraInformationTags) {
+			encodeField_uint16 (blockPayload, kv.first);
+			encodeField_uint16 (blockPayload, (uint16_t) kv.second.size());
+			blockPayload.insert(blockPayload.end(), kv.second.begin(), kv.second.end());
+		}
+		encodeField_uint16 (Buffer, 4U);                                             //Encode block code
+		encodeField_uint32 (Buffer, (uint32_t) blockPayload.size() + (uint32_t) 6U); //Encode block size
+		Buffer.insert(Buffer.end(), blockPayload.begin(), blockPayload.end());       //Insert block payload
+	}
+	
+	//Encode Custom Blocks
+	for (const auto & kv : customBlocks) {
+		blockPayload.clear();
+		serialize_CustomBlockPayload(kv.second, blockPayload);
+		encodeField_uint16 (Buffer, 5U);                                             //Encode block code
+		encodeField_uint32 (Buffer, (uint32_t) blockPayload.size() + (uint32_t) 6U); //Encode block size
+		Buffer.insert(Buffer.end(), blockPayload.begin(), blockPayload.end());       //Insert block payload
+	}
+	
+	//Encode End-of-Header block
+	encodeField_uint16 (Buffer, 6U);            //Encode block code
+	encodeField_uint32 (Buffer, (uint32_t) 6U); //Encode block size
+	
+	//Finally, pack the raster data into the buffer
+	for (const FRFLayer * layer : Layers)
+		Buffer.insert(Buffer.end(), layer->Data.begin(), layer->Data.end());
+	
+	return true;
+}
+
 //Return <Major, Minor> version tuple for the image
 std::tuple<uint16_t, uint16_t> FRFImage::getFileVersion(void) const {
 	return std::make_tuple(majorVersion, minorVersion);
@@ -1983,6 +2075,7 @@ std::tuple<double, double> FRFImage::GetCoordinatesOfPixel(Eigen::Vector2d const
 	Eigen::Vector2d P6Value = t*P3Value + (1.0 - t)*P4Value;
 	double s = (yMax - pixelY)/cellHeight;
 	Eigen::Vector2d LatLon = s*P5Value + (1.0 - s)*P6Value;
+	//fprintf(stderr, "LatLon: %.16f, %.16f\r\n", LatLon(0), LatLon(1));
 	LatLon = MapLatLonToPrincipalRange(LatLon);
 	
 	return std::make_tuple(LatLon(0), LatLon(1));
