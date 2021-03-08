@@ -11,8 +11,17 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
-#include <eigen3/Eigen/Core>
-#include <eigen3/Eigen/StdVector>
+
+//Eigen Includes
+#if defined FRF_USE_SYSTEM_EIGEN_HEADERS
+	//Use typical include path for system-provided Eigen
+	#include <eigen3/Eigen/Core>
+	#include <eigen3/Eigen/StdVector>
+#else
+	//Use relative paths assuming Eigen is cloned next the FRF
+	#include <../eigen/Eigen/Core>
+	#include <../eigen/Eigen/StdVector>
+#endif
 
 // ****************************************************************************************************************************************
 // ********************************************************   Component Classes   *********************************************************
