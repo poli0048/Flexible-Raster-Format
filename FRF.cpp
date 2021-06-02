@@ -10,14 +10,22 @@
 #include <bitset>
 #include <iostream>
 
-//Intrinsic Includes
-#if defined(_MSC_VER)
+//Intrinsic Includes and aliasing
+#if defined(_MSC_VER) && (! defined(__clang__))
      /* Microsoft C/C++-compatible compiler */
+     #pragma message "MSVC detected - aliasing _bswap64 intrinsic to _byteswap_uint64"
      #include <intrin.h>
      #define _bswap64 _byteswap_uint64
-#elif defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+#elif defined(__GNUC__) && (! defined(__clang__)) && (defined(__x86_64__) || defined(__i386__))
      /* GCC-compatible compiler, targeting x86/x86-64 */
+     #pragma message "GCC detected - No aliasing needed for _bswap64 intrinsic"
      #include <x86intrin.h>
+#elif defined(__clang__) && (defined(__x86_64__) || defined(__i386__))
+     /* Clang-compatible compiler, targeting x86/x86-64 */
+     #pragma message "Clang detected - aliasing _bswap64 intrinsic to __bswap_64"
+     #define _bswap64 __bswap_64
+#else
+     #pragma message "Compiler/architecture not detected correctly"
 #endif
 
 //Module Includes
